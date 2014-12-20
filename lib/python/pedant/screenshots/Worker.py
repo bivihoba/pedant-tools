@@ -88,7 +88,8 @@ class Worker(threading.Thread):
 		#start browser
 		self.initBrowser()
 		self.init_hook()
-		self.hook.call_by_event( 'before_items',self.items )
+		if self.hook.call_by_event( 'before_items',self.items ) is False:
+			self.stop = True
 		for item in self.items:
 			if ( self.stop ):
 				self.log( "Skip url: " + item['url'] )
@@ -96,16 +97,19 @@ class Worker(threading.Thread):
 			self.log( "Files for left (for current worker): " + str( ( len(self.items) - len(self.finished_ids) ) ) )
 			self.log( "Start checking for url: " + item['url'] )
 			start_time = time.time()
-			self.hook.call_by_event( 'before_item', item )
+			if self.hook.call_by_event( 'before_item', item ) is False:
+				continue
 			self.browser['instance'].get( item['url'] )
 			item['load_time'] = round( time.time() - start_time , 2)
 			#handler before screen
-			self.hook.call_by_event( 'before_screenshot', item )
+			if self.hook.call_by_event( 'before_screenshot', item ) is False:
+				continue
 			#print "Handler <before_screenshot> error with item <" +item['unid']+ ">"
 			self.browser['instance'].save_screenshot( self.pathes[ item['unid'] ]['abs']['actual_report_path'] )
 			try:
 				result = self.screen_processing( item )
-				self.hook.call_by_event( 'after_item', item , result )
+				if self.hook.call_by_event( 'after_item', item , result ) is False:
+					continue 
 				self.save_result( item , result )
 			except Exception as e:
 				print "Item <" + item['unid'] + "> error:" + str(e)
@@ -127,14 +131,15 @@ class Worker(threading.Thread):
 		pathes = {}
 		for item in self.items:
 			path_suffix = item['unid'] + os.sep + self.browser['unid'] + os.sep
+			path_suffix = path_suffix.encode('utf-8')
 			pathes[ item['unid'] ] = {
 				'abs': {
-					'approved_dir': self.root + os.sep + 'approved' + os.sep + path_suffix,
-					'report_dir': self.root + os.sep + 'reports' + os.sep + self.timestamp + os.sep + path_suffix,
-					'approved_path': self.root + os.sep + 'approved' + os.sep + path_suffix + 'approved.png',
-					'actual_report_path': self.root + os.sep + 'reports' + os.sep + self.timestamp + os.sep + path_suffix + 'actual.png',
-					'approved_report_path': self.root + os.sep + 'reports' + os.sep + self.timestamp + os.sep + path_suffix + 'approved_report.png',
-					'diff_report_path': self.root + os.sep + 'reports' + os.sep + self.timestamp + os.sep + path_suffix + 'diff.png', 
+					'approved_dir':	os.path.join( self.root, 'approved' , path_suffix),
+					'report_dir': os.path.join( self.root, 'reports' , self.timestamp, path_suffix),
+					'approved_path': os.path.join( self.root, 'approved' , path_suffix , 'approved.png' ),
+					'actual_report_path': os.path.join( self.root , 'reports' , self.timestamp , path_suffix + 'actual.png' ),
+					'approved_report_path': os.path.join( self.root , 'reports' , self.timestamp , path_suffix , 'approved_report.png' ),
+					'diff_report_path': os.path.join( self.root , 'reports' , self.timestamp , path_suffix , 'diff.png' )
 				}
 			}
 		return pathes
